@@ -100,16 +100,24 @@ export const exhausts = generateExhausts()
 const generateCameras = () => {
   const list = []
   floors.forEach(floor => {
+    const floorDetectors = detectors.filter(d => d.floor === floor.id)
     for (let i = 0; i < 6; i++) {
+      const camPos = { x: 10 + i * 15, y: 10 + (i % 3) * 30 }
+      let nearestDetector = floorDetectors[0]
+      let minDist = Infinity
+      floorDetectors.forEach(d => {
+        const dist = Math.hypot(d.position.x - camPos.x, d.position.y - camPos.y)
+        if (dist < minDist) { minDist = dist; nearestDetector = d }
+      })
       list.push({
         id: `${floor.id}-CAM-${String(i + 1).padStart(3, '0')}`,
         floor: floor.id,
         name: `${floor.name}${String(i + 1).padStart(2, '0')}号摄像头`,
-        position: { x: 10 + i * 15, y: 10 + (i % 3) * 30 },
+        position: camPos,
         status: i === 3 ? 'offline' : 'online',
         resolution: '1920x1080',
         type: i % 2 === 0 ? '球机' : '枪机',
-        relatedDetectorId: detectors.find(d => d.floor === floor.id)?.id
+        relatedDetectorId: nearestDetector?.id || floorDetectors[0]?.id
       })
     }
   })

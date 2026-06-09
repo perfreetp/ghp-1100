@@ -8,11 +8,10 @@ import {
   PlusOutlined, SendOutlined, TeamOutlined, EnvironmentOutlined
 } from '@ant-design/icons'
 import { useStore } from '../store/useStore'
-import { contacts } from '../data/mockData'
 import dayjs from 'dayjs'
 
 const DisposalModal = ({ open, alarm, onClose }) => {
-  const { notifications, disposalSteps, addNotification, addDisposalStep, currentUser } = useStore()
+  const { notifications, disposalSteps, addNotification, addDisposalStep, currentUser, contacts } = useStore()
   const { message } = AntdApp.useApp()
   const [form] = Form.useForm()
   const [stepForm] = Form.useForm()

@@ -1,23 +1,48 @@
 import { create } from 'zustand'
 import {
-  detectors, fireDoors, exhausts, cameras, contacts,
-  alarmHistory, dutyLogs, notifications, disposalSteps,
+  detectors, fireDoors, exhausts, cameras, contacts as defaultContacts,
+  alarmHistory, dutyLogs as defaultDutyLogs, notifications as defaultNotifications, disposalSteps as defaultDisposalSteps,
   systemStatus, floors, alarmLevelConfig
 } from '../data/mockData'
 
-export const useStore = create((set, get) => ({
+const STORAGE_KEY = 'fire_control_persist_v1'
+const PERSIST_KEYS = ['contacts', 'dutyLogs', 'pendingTasks', 'disposalSteps', 'notifications', 'alarms']
+
+const loadPersist = () => {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null
+    return raw ? JSON.parse(raw) : {}
+  } catch (e) {
+    console.warn('[persist] 加载本地存储失败:', e)
+    return {}
+  }
+}
+
+const savePersist = (state) => {
+  try {
+    const data = {}
+    PERSIST_KEYS.forEach(k => { data[k] = state[k] })
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+  } catch (e) {
+    console.warn('[persist] 保存本地存储失败:', e)
+  }
+}
+
+const persisted = loadPersist()
+
+const initialState = {
   currentFloor: '1F',
   activeAlarm: null,
   alarmModalOpen: false,
-  alarms: [...alarmHistory],
+  alarms: persisted.alarms && persisted.alarms.length ? persisted.alarms : [...alarmHistory],
   detectors: [...detectors],
   fireDoors: [...fireDoors],
   exhausts: [...exhausts],
   cameras: [...cameras],
-  contacts: [...contacts],
-  dutyLogs: [...dutyLogs],
-  notifications: [...notifications],
-  disposalSteps: [...disposalSteps],
+  contacts: persisted.contacts && persisted.contacts.length ? persisted.contacts : [...defaultContacts],
+  dutyLogs: persisted.dutyLogs && persisted.dutyLogs.length ? persisted.dutyLogs : [...defaultDutyLogs],
+  notifications: persisted.notifications && persisted.notifications.length ? persisted.notifications : [...defaultNotifications],
+  disposalSteps: persisted.disposalSteps && persisted.disposalSteps.length ? persisted.disposalSteps : [...defaultDisposalSteps],
   systemStatus: { ...systemStatus },
   deviceFilter: { floor: 'all', type: 'all', status: 'all' },
   selectedCamera: null,
@@ -26,8 +51,12 @@ export const useStore = create((set, get) => ({
   selectedAlarmForDisposal: null,
   printModalOpen: false,
   selectedAlarmForPrint: null,
-  pendingTasks: [],
-  currentUser: { name: '李明华', role: '监控值班员', shift: '白班' },
+  pendingTasks: persisted.pendingTasks || [],
+  currentUser: { name: '李明华', role: '监控值班员', shift: '白班' }
+}
+
+export const useStore = create((set, get) => ({
+  ...initialState,
 
   setCurrentFloor: (floor) => set({ currentFloor: floor }),
   setDeviceFilter: (filter) => set((state) => ({ deviceFilter: { ...state.deviceFilter, ...filter } })),
@@ -39,8 +68,9 @@ export const useStore = create((set, get) => ({
             responseTime: Math.floor((Date.now() - new Date(a.createdAt).getTime()) / 1000) }
         : a
     )
-    const alarm = alarms.find(a => a.id === alarmId)
-    return { alarms, alarmModalOpen: false, activeAlarm: null, systemStatus: { ...state.systemStatus, pendingAlarms: Math.max(0, state.systemStatus.pendingAlarms - 1) } }
+    const result = { alarms, alarmModalOpen: false, activeAlarm: null, systemStatus: { ...state.systemStatus, pendingAlarms: Math.max(0, state.systemStatus.pendingAlarms - 1) } }
+    savePersist({ ...state, ...result })
+    return result
   }),
 
   markFalseAlarm: (alarmId, operator, note) => set((state) => {
@@ -50,7 +80,9 @@ export const useStore = create((set, get) => ({
             responseTime: Math.floor((Date.now() - new Date(a.createdAt).getTime()) / 1000) }
         : a
     )
-    return { alarms, alarmModalOpen: false, activeAlarm: null, systemStatus: { ...state.systemStatus, pendingAlarms: Math.max(0, state.systemStatus.pendingAlarms - 1) } }
+    const result = { alarms, alarmModalOpen: false, activeAlarm: null, systemStatus: { ...state.systemStatus, pendingAlarms: Math.max(0, state.systemStatus.pendingAlarms - 1) } }
+    savePersist({ ...state, ...result })
+    return result
   }),
 
   triggerAlarm: () => set((state) => {
@@ -81,13 +113,15 @@ export const useStore = create((set, get) => ({
       handler: null
     }
 
-    return {
+    const result = {
       alarms: [newAlarm, ...state.alarms],
       activeAlarm: newAlarm,
       alarmModalOpen: true,
       currentFloor: detector.floor,
       systemStatus: { ...state.systemStatus, pendingAlarms: state.systemStatus.pendingAlarms + 1, todayAlarms: state.systemStatus.todayAlarms + 1 }
     }
+    savePersist({ ...state, ...result })
+    return result
   }),
 
   openAlarmModal: (alarm) => set({ alarmModalOpen: true, activeAlarm: alarm }),
@@ -99,44 +133,85 @@ export const useStore = create((set, get) => ({
   openDisposalModal: (alarm) => set({ disposalModalOpen: true, selectedAlarmForDisposal: alarm }),
   closeDisposalModal: () => set({ disposalModalOpen: false, selectedAlarmForDisposal: null }),
 
-  addNotification: (notification) => set((state) => ({
-    notifications: [{ ...notification, id: `NTF-${Date.now()}`, notifiedAt: new Date().toISOString() }, ...state.notifications]
-  })),
+  addNotification: (notification) => set((state) => {
+    const result = {
+      notifications: [{ ...notification, id: `NTF-${Date.now()}`, notifiedAt: new Date().toISOString() }, ...state.notifications]
+    }
+    savePersist({ ...state, ...result })
+    return result
+  }),
 
-  addDisposalStep: (step) => set((state) => ({
-    disposalSteps: [...state.disposalSteps, { ...step, id: `DSP-${Date.now()}`, status: 'done', createdAt: new Date().toISOString() }]
-  })),
+  addDisposalStep: (step) => set((state) => {
+    const result = {
+      disposalSteps: [...state.disposalSteps, { ...step, id: `DSP-${Date.now()}`, status: 'done', createdAt: new Date().toISOString() }]
+    }
+    savePersist({ ...state, ...result })
+    return result
+  }),
 
-  updateDisposalStepStatus: (stepId, status) => set((state) => ({
-    disposalSteps: state.disposalSteps.map(s => s.id === stepId ? { ...s, status } : s)
-  })),
+  updateDisposalStepStatus: (stepId, status) => set((state) => {
+    const result = {
+      disposalSteps: state.disposalSteps.map(s => s.id === stepId ? { ...s, status } : s)
+    }
+    savePersist({ ...state, ...result })
+    return result
+  }),
 
-  addDutyLog: (log) => set((state) => ({
-    dutyLogs: [{ ...log, id: `LOG-${Date.now()}`, createdAt: new Date().toISOString() }, ...state.dutyLogs]
-  })),
+  addDutyLog: (log) => set((state) => {
+    const result = {
+      dutyLogs: [{ ...log, id: `LOG-${Date.now()}`, createdAt: new Date().toISOString() }, ...state.dutyLogs]
+    }
+    savePersist({ ...state, ...result })
+    return result
+  }),
 
-  addContact: (contact) => set((state) => ({
-    contacts: [...state.contacts, { ...contact, id: `C${String(state.contacts.length + 1).padStart(3, '0')}` }]
-  })),
+  addContact: (contact) => set((state) => {
+    const lastNum = state.contacts.reduce((max, c) => {
+      const m = /^C(\d+)$/.exec(c.id)
+      return m ? Math.max(max, parseInt(m[1])) : max
+    }, 0)
+    const newId = `C${String(lastNum + 1).padStart(3, '0')}`
+    const result = {
+      contacts: [...state.contacts, { ...contact, id: newId }]
+    }
+    savePersist({ ...state, ...result })
+    return result
+  }),
 
-  updateContact: (id, updates) => set((state) => ({
-    contacts: state.contacts.map(c => c.id === id ? { ...c, ...updates } : c)
-  })),
+  updateContact: (id, updates) => set((state) => {
+    const result = {
+      contacts: state.contacts.map(c => c.id === id ? { ...c, ...updates } : c)
+    }
+    savePersist({ ...state, ...result })
+    return result
+  }),
 
-  deleteContact: (id) => set((state) => ({
-    contacts: state.contacts.filter(c => c.id !== id)
-  })),
+  deleteContact: (id) => set((state) => {
+    const result = {
+      contacts: state.contacts.filter(c => c.id !== id)
+    }
+    savePersist({ ...state, ...result })
+    return result
+  }),
 
   openPrintModal: (alarm) => set({ printModalOpen: true, selectedAlarmForPrint: alarm }),
   closePrintModal: () => set({ printModalOpen: false, selectedAlarmForPrint: null }),
 
-  addPendingTask: (task) => set((state) => ({
-    pendingTasks: [...state.pendingTasks, { ...task, id: `TASK-${Date.now()}`, createdAt: new Date().toISOString(), completed: false }]
-  })),
+  addPendingTask: (task) => set((state) => {
+    const result = {
+      pendingTasks: [...state.pendingTasks, { ...task, id: `TASK-${Date.now()}`, createdAt: new Date().toISOString(), completed: false }]
+    }
+    savePersist({ ...state, ...result })
+    return result
+  }),
 
-  completeTask: (taskId) => set((state) => ({
-    pendingTasks: state.pendingTasks.map(t => t.id === taskId ? { ...t, completed: true, completedAt: new Date().toISOString() } : t)
-  })),
+  completeTask: (taskId) => set((state) => {
+    const result = {
+      pendingTasks: state.pendingTasks.map(t => t.id === taskId ? { ...t, completed: true, completedAt: new Date().toISOString() } : t)
+    }
+    savePersist({ ...state, ...result })
+    return result
+  }),
 
   toggleFireDoor: (doorId) => set((state) => ({
     fireDoors: state.fireDoors.map(d => d.id === doorId ? { ...d, status: d.status === 'closed' ? 'open' : 'closed' } : d)
