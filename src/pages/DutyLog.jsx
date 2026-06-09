@@ -2,13 +2,13 @@ import React, { useState, useMemo } from 'react'
 import {
   Row, Col, Card, Table, Tag, Button, Space, Form, Input,
   Select, DatePicker, App as AntdApp, Modal, Tabs, Descriptions,
-  Divider, InputNumber, Checkbox, message as AntdMessage
+  Divider, Popconfirm
 } from 'antd'
 import {
   FileTextOutlined, PlusOutlined, EditOutlined, CheckCircleOutlined,
-  UserOutlined, CalendarOutlined, FormOutlined, SaveOutlined,
-  PrinterOutlined, BellOutlined, PhoneOutlined, TeamOutlined,
-  ClockCircleOutlined, WarningOutlined
+  CalendarOutlined, FormOutlined,
+  PrinterOutlined, PhoneOutlined, TeamOutlined,
+  ClockCircleOutlined, WarningOutlined, DeleteOutlined
 } from '@ant-design/icons'
 import { useStore } from '../store/useStore'
 import dayjs from 'dayjs'
@@ -20,13 +20,16 @@ const { RangePicker } = DatePicker
 const DutyLog = () => {
   const { modal, message } = AntdApp.useApp()
   const {
-    dutyLogs, addDutyLog, notifications, disposalSteps, alarms,
+    dutyLogs, addDutyLog, updateDutyLog, deleteDutyLog,
+    notifications, disposalSteps, alarms,
     currentUser, contacts, addNotification, addDisposalStep,
-    pendingTasks, addPendingTask, completeTask
+    pendingTasks, addPendingTask, completeTask, updatePendingTask, deletePendingTask
   } = useStore()
 
   const [handoverOpen, setHandoverOpen] = useState(false)
+  const [editingLog, setEditingLog] = useState(null)
   const [taskOpen, setTaskOpen] = useState(false)
+  const [editingTask, setEditingTask] = useState(null)
   const [logForm] = Form.useForm()
   const [taskForm] = Form.useForm()
   const [selectedLog, setSelectedLog] = useState(null)
@@ -42,42 +45,126 @@ const DutyLog = () => {
     })
   }, [dutyLogs, dateRange])
 
+  const openEditLog = (log) => {
+    setEditingLog(log)
+    logForm.setFieldsValue({
+      date: log.date ? dayjs(log.date) : dayjs(),
+      shift: log.shift,
+      offDutyPerson1: log.offDutyPerson1 || currentUser.name,
+      offDutyPerson2: log.offDutyPerson2 || '',
+      onDutyPerson1: log.onDutyPerson1,
+      onDutyPerson2: log.onDutyPerson2 || '',
+      equipmentStatus: log.equipmentStatus,
+      handoverNotes: log.handoverNotes || ''
+    })
+    setHandoverOpen(true)
+  }
+
   const handleHandoverSubmit = () => {
     logForm.validateFields().then(values => {
       const confirmed = alarms.filter(a => a.status !== 'pending').length
-      addDutyLog({
+      const falseCnt = alarms.filter(a => a.status === 'false').length
+      const payload = {
         date: values.date.format('YYYY-MM-DD'),
         shift: values.shift,
         onDutyPerson1: values.onDutyPerson1,
-        onDutyPerson2: values.onDutyPerson2,
-        offDutyPerson1: currentUser.name,
+        onDutyPerson2: values.onDutyPerson2 || '',
+        offDutyPerson1: editingLog ? values.offDutyPerson1 : currentUser.name,
         offDutyPerson2: values.offDutyPerson2 || '',
-        alarmCount: confirmed,
-        falseAlarmCount: alarms.filter(a => a.status === 'false').length,
         equipmentStatus: values.equipmentStatus,
-        handoverNotes: values.handoverNotes,
-        signature1: currentUser.name,
-        signature2: values.onDutyPerson1
-      })
-      message.success('交接班记录已保存')
+        handoverNotes: values.handoverNotes
+      }
+      if (editingLog) {
+        payload.alarmCount = editingLog.alarmCount ?? confirmed
+        payload.falseAlarmCount = editingLog.falseAlarmCount ?? falseCnt
+        payload.signature1 = editingLog.signature1 || values.offDutyPerson1
+        payload.signature2 = editingLog.signature2 || values.onDutyPerson1
+        updateDutyLog(editingLog.id, payload)
+        message.success('交接班记录已更新')
+      } else {
+        payload.alarmCount = confirmed
+        payload.falseAlarmCount = falseCnt
+        payload.signature1 = currentUser.name
+        payload.signature2 = values.onDutyPerson1
+        addDutyLog(payload)
+        message.success('交接班记录已保存')
+      }
       setHandoverOpen(false)
+      setEditingLog(null)
       logForm.resetFields()
     })
   }
 
+  const handleDeleteLog = (log) => {
+    modal.confirm({
+      title: '删除交接班记录',
+      content: '确定要删除该交接班记录吗？删除后不可恢复。',
+      okText: '确定删除',
+      okButtonProps: { danger: true },
+      onOk: () => {
+        deleteDutyLog(log.id)
+        message.success('已删除')
+      }
+    })
+  }
+
+  const openEditTask = (task) => {
+    setEditingTask(task)
+    taskForm.setFieldsValue({
+      title: task.title,
+      priority: task.priority,
+      assignee: task.assignee || '',
+      dueDate: task.dueDate ? dayjs(task.dueDate) : null,
+      description: task.description || ''
+    })
+    setTaskOpen(true)
+  }
+
   const handleAddTask = () => {
     taskForm.validateFields().then(values => {
-      addPendingTask({
+      const payload = {
         title: values.title,
         priority: values.priority,
-        dueDate: values.dueDate?.format('YYYY-MM-DD HH:mm') || '',
+        dueDate: values.dueDate ? values.dueDate.format('YYYY-MM-DD HH:mm') : '',
         assignee: values.assignee || '',
         description: values.description || ''
-      })
-      message.success('待办事项已添加')
+      }
+      if (editingTask) {
+        updatePendingTask(editingTask.id, payload)
+        message.success('待办事项已更新')
+      } else {
+        addPendingTask(payload)
+        message.success('待办事项已添加')
+      }
       setTaskOpen(false)
+      setEditingTask(null)
       taskForm.resetFields()
     })
+  }
+
+  const handleDeleteTask = (task) => {
+    modal.confirm({
+      title: '删除待办事项',
+      content: `确定要删除待办「${task.title}」吗？`,
+      okText: '确定删除',
+      okButtonProps: { danger: true },
+      onOk: () => {
+        deletePendingTask(task.id)
+        message.success('已删除')
+      }
+    })
+  }
+
+  const handleCloseHandover = () => {
+    setHandoverOpen(false)
+    setEditingLog(null)
+    logForm.resetFields()
+  }
+
+  const handleCloseTask = () => {
+    setTaskOpen(false)
+    setEditingTask(null)
+    taskForm.resetFields()
   }
 
   const logColumns = [
@@ -101,11 +188,23 @@ const DutyLog = () => {
       render: v => <Tag>{v}</Tag> },
     { title: '设备状态', dataIndex: 'equipmentStatus', width: 100,
       render: t => <Tag color="green">{t}</Tag> },
-    { title: '操作', width: 120,
+    { title: '操作', width: 200,
       render: (_, r) => (
-        <Space>
+        <Space size={4}>
           <Button type="link" size="small" icon={<FileTextOutlined />}
             onClick={() => setSelectedLog(r)}>详情</Button>
+          <Button type="link" size="small" icon={<EditOutlined />}
+            onClick={() => openEditLog(r)}>编辑</Button>
+          <Popconfirm
+            title="确认删除？"
+            description="删除后不可恢复"
+            onConfirm={() => handleDeleteLog(r)}
+            okText="删除"
+            okButtonProps={{ danger: true }}
+            cancelText="取消"
+          >
+            <Button type="link" size="small" danger icon={<DeleteOutlined />}>删除</Button>
+          </Popconfirm>
           <Button type="link" size="small" icon={<PrinterOutlined />}>打印</Button>
         </Space>
       )
@@ -126,12 +225,27 @@ const DutyLog = () => {
       render: (_, r) => <Tag color={r.completed ? 'success' : 'warning'}>
         {r.completed ? '已完成' : '待办'}
       </Tag> },
-    { title: '操作', width: 100,
-      render: (_, r) => !r.completed && (
-        <Button type="primary" size="small"
-          onClick={() => { completeTask(r.id); message.success('任务已完成') }}>
-          完成
-        </Button>
+    { title: '操作', width: 220,
+      render: (_, r) => (
+        <Space size={4}>
+          {!r.completed && (
+            <Button type="primary" size="small"
+              onClick={() => { completeTask(r.id); message.success('任务已完成') }}>
+              完成
+            </Button>
+          )}
+          <Button type="link" size="small" icon={<EditOutlined />}
+            onClick={() => openEditTask(r)}>编辑</Button>
+          <Popconfirm
+            title="确认删除？"
+            onConfirm={() => handleDeleteTask(r)}
+            okText="删除"
+            okButtonProps={{ danger: true }}
+            cancelText="取消"
+          >
+            <Button type="link" size="small" danger icon={<DeleteOutlined />}>删除</Button>
+          </Popconfirm>
+        </Space>
       )
     }
   ]
@@ -168,6 +282,10 @@ const DutyLog = () => {
   ]
 
   const todayLogs = dutyLogs.filter(l => l.date === dayjs().format('YYYY-MM-DD'))
+  const handoverTitle = editingLog ? '编辑交接班记录' : '交接班登记'
+  const handoverOkText = editingLog ? '保存修改' : '确认交接'
+  const taskTitle = editingTask ? '编辑待办事项' : '添加待办事项'
+  const taskOkText = editingTask ? '保存修改' : '添加'
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
@@ -258,10 +376,10 @@ const DutyLog = () => {
         title={<Space><FileTextOutlined style={{ color: '#1677ff' }} /><span>值班管理</span></Space>}
         extra={
           <Space>
-            <Button size="small" icon={<PlusOutlined />} type="primary" onClick={() => setHandoverOpen(true)}>
+            <Button size="small" icon={<PlusOutlined />} type="primary" onClick={() => { setEditingLog(null); logForm.resetFields(); setHandoverOpen(true) }}>
               交接班
             </Button>
-            <Button size="small" icon={<PlusOutlined />} onClick={() => setTaskOpen(true)}>
+            <Button size="small" icon={<PlusOutlined />} onClick={() => { setEditingTask(null); taskForm.resetFields(); setTaskOpen(true) }}>
               添加待办
             </Button>
           </Space>
@@ -340,11 +458,11 @@ const DutyLog = () => {
 
       <Modal
         open={handoverOpen}
-        onCancel={() => setHandoverOpen(false)}
+        onCancel={handleCloseHandover}
         onOk={handleHandoverSubmit}
         width={640}
-        title={<Space><TeamOutlined style={{ color: '#1677ff' }} />交接班登记</Space>}
-        okText="确认交接"
+        title={<Space><TeamOutlined style={{ color: '#1677ff' }} />{handoverTitle}</Space>}
+        okText={handoverOkText}
         cancelText="取消"
       >
         <Form form={logForm} layout="vertical" initialValues={{
@@ -372,7 +490,7 @@ const DutyLog = () => {
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item name="offDutyPerson1" label="交班人1">
-                <Input disabled value={currentUser.name} />
+                <Input disabled={!editingLog} value={editingLog ? undefined : currentUser.name} />
               </Form.Item>
             </Col>
             <Col span={12}>
@@ -422,7 +540,9 @@ const DutyLog = () => {
             border: '1px solid #00408080', fontSize: 12
           }}>
             <CheckCircleOutlined style={{ color: '#52c41a' }} /> 提交后将自动生成电子签名：
-            <span style={{ color: '#1677ff', marginLeft: 4, fontWeight: 600 }}>{currentUser.name}</span>
+            <span style={{ color: '#1677ff', marginLeft: 4, fontWeight: 600 }}>
+              {editingLog ? (editingLog.signature1 || editingLog.offDutyPerson1) : currentUser.name}
+            </span>
             （交班）
           </div>
         </Form>
@@ -430,10 +550,10 @@ const DutyLog = () => {
 
       <Modal
         open={taskOpen}
-        onCancel={() => setTaskOpen(false)}
+        onCancel={handleCloseTask}
         onOk={handleAddTask}
-        title={<Space><PlusOutlined style={{ color: '#1677ff' }} />添加待办事项</Space>}
-        okText="添加"
+        title={<Space><PlusOutlined style={{ color: '#1677ff' }} />{taskTitle}</Space>}
+        okText={taskOkText}
         cancelText="取消"
       >
         <Form form={taskForm} layout="vertical" initialValues={{ priority: 'medium' }}>

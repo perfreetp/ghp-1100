@@ -160,7 +160,7 @@ const AlarmMonitor = () => {
       width: 200,
       fixed: 'right',
       render: (_, r) => {
-        const relatedCamera = cameras.find(c => c.floor === r.floor)
+        const relatedCamera = cameras.find(c => c.relatedDetectorId === r.detectorId)
         return (
           <Space size={4}>
             <Button type="link" size="small" onClick={() => openAlarmModal(r)}>

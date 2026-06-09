@@ -26,7 +26,7 @@ const AlarmModal = ({ open, alarm, onClose }) => {
     }
   }, [open, alarm])
 
-  const relatedCamera = cameras.find(c => c.relatedDetectorId === alarm?.detectorId) || cameras.find(c => c.floor === alarm?.floor)
+  const relatedCamera = cameras.find(c => c.relatedDetectorId === alarm?.detectorId)
   const relatedDetector = detectors.find(d => d.id === alarm?.detectorId)
 
   const handleConfirm = () => {

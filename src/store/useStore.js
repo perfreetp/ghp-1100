@@ -157,9 +157,41 @@ export const useStore = create((set, get) => ({
     return result
   }),
 
+  updateDisposalStep: (id, updates) => set((state) => {
+    const result = {
+      disposalSteps: state.disposalSteps.map(s => s.id === id ? { ...s, ...updates } : s)
+    }
+    savePersist({ ...state, ...result })
+    return result
+  }),
+
+  deleteDisposalStep: (id) => set((state) => {
+    const result = {
+      disposalSteps: state.disposalSteps.filter(s => s.id !== id)
+    }
+    savePersist({ ...state, ...result })
+    return result
+  }),
+
   addDutyLog: (log) => set((state) => {
     const result = {
       dutyLogs: [{ ...log, id: `LOG-${Date.now()}`, createdAt: new Date().toISOString() }, ...state.dutyLogs]
+    }
+    savePersist({ ...state, ...result })
+    return result
+  }),
+
+  updateDutyLog: (id, updates) => set((state) => {
+    const result = {
+      dutyLogs: state.dutyLogs.map(l => l.id === id ? { ...l, ...updates } : l)
+    }
+    savePersist({ ...state, ...result })
+    return result
+  }),
+
+  deleteDutyLog: (id) => set((state) => {
+    const result = {
+      dutyLogs: state.dutyLogs.filter(l => l.id !== id)
     }
     savePersist({ ...state, ...result })
     return result
@@ -208,6 +240,22 @@ export const useStore = create((set, get) => ({
   completeTask: (taskId) => set((state) => {
     const result = {
       pendingTasks: state.pendingTasks.map(t => t.id === taskId ? { ...t, completed: true, completedAt: new Date().toISOString() } : t)
+    }
+    savePersist({ ...state, ...result })
+    return result
+  }),
+
+  updatePendingTask: (id, updates) => set((state) => {
+    const result = {
+      pendingTasks: state.pendingTasks.map(t => t.id === id ? { ...t, ...updates } : t)
+    }
+    savePersist({ ...state, ...result })
+    return result
+  }),
+
+  deletePendingTask: (id) => set((state) => {
+    const result = {
+      pendingTasks: state.pendingTasks.filter(t => t.id !== id)
     }
     savePersist({ ...state, ...result })
     return result
