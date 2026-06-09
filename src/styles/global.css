@@ -1,0 +1,61 @@
+:root {
+  --primary-color: #1677ff;
+  --success-color: #52c41a;
+  --warning-color: #faad14;
+  --error-color: #ff4d4f;
+  --info-color: #1677ff;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: #001529;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #004080;
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: #0055aa;
+}
+
+@keyframes pulse-red {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.15); }
+}
+
+.pulse-alarm {
+  animation: pulse-red 1s ease-in-out infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.blink-alarm {
+  animation: blink 0.5s step-end infinite;
+}
+
+.glass-card {
+  background: linear-gradient(135deg, rgba(0, 30, 60, 0.9), rgba(0, 50, 100, 0.7));
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(0, 100, 200, 0.3);
+}
+
+.status-online { color: #52c41a; }
+.status-offline { color: #8c8c8c; }
+.status-fault { color: #ff4d4f; }
+.status-normal { color: #52c41a; }
+.status-open { color: #faad14; }
+.status-closed { color: #52c41a; }
+.status-running { color: #1677ff; }
+.status-standby { color: #8c8c8c; }
+.status-pending { color: #ff4d4f; }
+.status-confirmed { color: #1677ff; }
+.status-false { color: #8c8c8c; }
